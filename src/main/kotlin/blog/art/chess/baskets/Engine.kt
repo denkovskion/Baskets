@@ -121,7 +121,6 @@ private fun generateMoves(
             }
           }
         }
-
         is Pawn -> {
           val captureDirections =
             when (piece.colour) {
@@ -228,7 +227,6 @@ internal fun makeMove(
             QuietMove(move.origin, move.target2),
             null,
           ) != null
-
       is DoubleStep,
       is EnPassant,
       is Promotion,
@@ -249,35 +247,29 @@ internal fun makeMove(
         board[move.target] = board.set(move.origin, Empty)
         castlingOrigins.remove(move.origin)
       }
-
       is Capture -> {
         board[move.target] = board.set(move.origin, Empty)
         castlingOrigins.remove(move.origin)
         castlingOrigins.remove(move.target)
       }
-
       is Castling -> {
         board[move.target] = board.set(move.origin, Empty)
         board[move.target2] = board.set(move.origin2, Empty)
         castlingOrigins.remove(move.origin)
         castlingOrigins.remove(move.origin2)
       }
-
       is DoubleStep -> {
         board[move.target] = board.set(move.origin, Empty)
         enPassantTarget = move.stop
       }
-
       is EnPassant -> {
         board[move.stop] = Empty
         board[move.target] = board.set(move.origin, Empty)
       }
-
       is Promotion -> {
         board[move.origin] = Empty
         board[move.target] = move.promoted
       }
-
       is PromotionCapture -> {
         board[move.origin] = Empty
         board[move.target] = move.promoted
@@ -327,27 +319,20 @@ internal fun newPosition(
   castlingOrigins: Set<Int>,
   enPassantTarget: Int?,
 ): Position {
-  for (value in arrayOf(Colour.WHITE, Colour.BLACK)) {
-    var frequency = 0
-    for (piece in board) {
-      if (piece is King && piece.colour == value) {
-        frequency++
-      }
-    }
-    if (frequency != 1) {
-      throw IllegalArgumentException("Not accepted number of kings")
+  for (colour in arrayOf(Colour.WHITE, Colour.BLACK)) {
+    require(board.count { it is King && it.colour == colour } == 1) {
+      "Not accepted number of kings"
     }
   }
   for (castlingOrigin in castlingOrigins) {
     val piece = board[castlingOrigin]
     val file = castlingOrigin / 10 - 1
     val rank = castlingOrigin % 10
-    if (
-      !((file == 5 && piece is King || (file == 1 || file == 8) && piece is Rook) &&
-        (rank == 1 && (piece as Piece).colour == Colour.WHITE ||
-          rank == 8 && (piece as Piece).colour == Colour.BLACK))
+    require(
+      (file == 5 && piece is King || (file == 1 || file == 8) && piece is Rook) &&
+        (rank == 1 && piece.colour == Colour.WHITE || rank == 8 && piece.colour == Colour.BLACK)
     ) {
-      throw IllegalArgumentException("Not accepted castling rights")
+      "Not accepted castling rights"
     }
   }
   if (enPassantTarget != null) {
@@ -358,8 +343,8 @@ internal fun newPosition(
             Colour.WHITE -> -1
             Colour.BLACK -> 1
           }]
-    if (
-      !(enPassantTarget % 10 ==
+    require(
+      enPassantTarget % 10 ==
         when (sideToMove) {
           Colour.WHITE -> 6
           Colour.BLACK -> 3
@@ -373,9 +358,9 @@ internal fun newPosition(
           Empty &&
         board[enPassantTarget] is Empty &&
         other is Pawn &&
-        other.colour != sideToMove)
+        other.colour != sideToMove
     ) {
-      throw IllegalArgumentException("Not accepted en passant square")
+      "Not accepted en passant square"
     }
   }
   return Position(ArrayList(board), sideToMove, HashSet(castlingOrigins), enPassantTarget)

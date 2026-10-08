@@ -39,7 +39,8 @@ public class Main {
           Parser.positionFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
       BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
       for (String line; (line = reader.readLine()) != null; ) {
-        try (Scanner scanner = new Scanner(line)) {
+        try {
+          Scanner scanner = new Scanner(line);
           if (scanner.hasNext()) {
             String command = scanner.next("uci|isready|position|go|quit");
             switch (command) {

@@ -35,7 +35,8 @@ import java.util.regex.MatchResult;
 class Parser {
 
   static Position positionFen(String string) {
-    try (Scanner fields = new Scanner(string)) {
+    try {
+      Scanner fields = new Scanner(string);
       List<Square> board = new ArrayList<>();
       for (int index = 0; index < 120; index++) {
         int file = index / 10 - 1;
@@ -43,35 +44,33 @@ class Parser {
         board.add(
             file >= 1 && file <= 8 && rank >= 1 && rank <= 8 ? Empty.INSTANCE : Border.INSTANCE);
       }
-      try (Scanner characters = new Scanner(fields.next())) {
-        characters.useDelimiter("");
-        for (int rank = 8; rank >= 1; rank--) {
-          for (int file = 1; file <= 8; file++) {
-            if (characters.hasNext("[" + "12345678".substring(0, 8 - (file - 1)) + "]")) {
-              file += characters.nextInt();
-              if (file > 8) {
-                break;
-              }
-            }
-            String letter = characters.next("[KQRBNPkqrbnp]");
-            int index = (file + 1) * 10 + rank;
-            switch (letter) {
-              case "K" -> board.set(index, new King(Colour.WHITE));
-              case "Q" -> board.set(index, new Queen(Colour.WHITE));
-              case "R" -> board.set(index, new Rook(Colour.WHITE));
-              case "B" -> board.set(index, new Bishop(Colour.WHITE));
-              case "N" -> board.set(index, new Knight(Colour.WHITE));
-              case "P" -> board.set(index, new Pawn(Colour.WHITE));
-              case "k" -> board.set(index, new King(Colour.BLACK));
-              case "q" -> board.set(index, new Queen(Colour.BLACK));
-              case "r" -> board.set(index, new Rook(Colour.BLACK));
-              case "b" -> board.set(index, new Bishop(Colour.BLACK));
-              case "n" -> board.set(index, new Knight(Colour.BLACK));
-              case "p" -> board.set(index, new Pawn(Colour.BLACK));
+      Scanner characters = new Scanner(fields.next()).useDelimiter("");
+      for (int rank = 8; rank >= 1; rank--) {
+        for (int file = 1; file <= 8; file++) {
+          if (characters.hasNext("[" + "12345678".substring(0, 8 - (file - 1)) + "]")) {
+            file += characters.nextInt();
+            if (file > 8) {
+              break;
             }
           }
-          characters.skip(rank > 1 ? "/" : "$");
+          String letter = characters.next("[KQRBNPkqrbnp]");
+          int index = (file + 1) * 10 + rank;
+          switch (letter) {
+            case "K" -> board.set(index, new King(Colour.WHITE));
+            case "Q" -> board.set(index, new Queen(Colour.WHITE));
+            case "R" -> board.set(index, new Rook(Colour.WHITE));
+            case "B" -> board.set(index, new Bishop(Colour.WHITE));
+            case "N" -> board.set(index, new Knight(Colour.WHITE));
+            case "P" -> board.set(index, new Pawn(Colour.WHITE));
+            case "k" -> board.set(index, new King(Colour.BLACK));
+            case "q" -> board.set(index, new Queen(Colour.BLACK));
+            case "r" -> board.set(index, new Rook(Colour.BLACK));
+            case "b" -> board.set(index, new Bishop(Colour.BLACK));
+            case "n" -> board.set(index, new Knight(Colour.BLACK));
+            case "p" -> board.set(index, new Pawn(Colour.BLACK));
+          }
         }
+        characters.skip(rank > 1 ? "/" : "$");
       }
       Colour sideToMove = Colour.WHITE;
       if (fields.hasNext("w")) {
