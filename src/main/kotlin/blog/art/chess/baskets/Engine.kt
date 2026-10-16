@@ -24,7 +24,62 @@
 
 package blog.art.chess.baskets
 
-internal fun isPositionLegal(position: Position, pseudoLegalMoves: MutableList<Move>?): Boolean {
+internal sealed interface Square
+
+internal data object Empty : Square
+
+internal data object Border : Square
+
+internal enum class Colour {
+  WHITE,
+  BLACK,
+}
+
+private sealed interface Piece : Square {
+  val colour: Colour
+}
+
+private sealed interface Category : Piece
+
+internal data class King(override val colour: Colour) : Category
+
+internal data class Queen(override val colour: Colour) : Category
+
+internal data class Rook(override val colour: Colour) : Category
+
+internal data class Bishop(override val colour: Colour) : Category
+
+internal data class Knight(override val colour: Colour) : Category
+
+internal data class Pawn(override val colour: Colour) : Piece
+
+internal data class Position(
+  val board: List<Square>,
+  val sideToMove: Colour,
+  val castlingOrigins: Set<Int>,
+  val enPassantTarget: Int?,
+)
+
+private sealed interface Move
+
+private data object NullMove : Move
+
+private data class QuietMove(val origin: Int, val target: Int) : Move
+
+private data class Capture(val origin: Int, val target: Int) : Move
+
+private data class Castling(val origin: Int, val target: Int, val origin2: Int, val target2: Int) :
+  Move
+
+private data class DoubleStep(val origin: Int, val target: Int, val stop: Int) : Move
+
+private data class EnPassant(val origin: Int, val target: Int, val stop: Int) : Move
+
+private data class Promotion(val origin: Int, val target: Int, val promoted: Piece) : Move
+
+private data class PromotionCapture(val origin: Int, val target: Int, val promoted: Piece) : Move
+
+private fun isPositionLegal(position: Position, pseudoLegalMoves: MutableList<Move>?): Boolean {
   return generateMoves(
     position.board,
     position.sideToMove,
@@ -210,7 +265,7 @@ private fun generateMoves(
   return true
 }
 
-internal fun makeMove(
+private fun makeMove(
   position: Position,
   move: Move,
   pseudoLegalMoves: MutableList<Move>?,
@@ -284,7 +339,7 @@ internal fun makeMove(
   return null
 }
 
-internal fun toUciCode(move: Move): String {
+private fun toUciCode(move: Move): String {
   return when (move) {
     is NullMove -> "0000"
     is QuietMove -> toUciCode(move.origin) + toUciCode(move.target)
@@ -364,4 +419,157 @@ internal fun newPosition(
     }
   }
   return Position(ArrayList(board), sideToMove, HashSet(castlingOrigins), enPassantTarget)
+}
+
+internal fun goPerft(position: Position, nPlies: Int) {
+  val begin = System.currentTimeMillis()
+  val pseudoLegalMoves = mutableListOf<Move>()
+  if (isPositionLegal(position, pseudoLegalMoves)) {
+    val nNodes = count(position, nPlies, pseudoLegalMoves, true)
+    val end: Long = System.currentTimeMillis()
+    println("Nodes searched: $nNodes")
+    println("info time ${end - begin}")
+  } else {
+    println("info string Illegal position")
+  }
+}
+
+private fun count(
+  position: Position,
+  nPlies: Int,
+  pseudoLegalMoves: List<Move>,
+  verbose: Boolean,
+): Long {
+  if (nPlies == 0) {
+    return 1L
+  }
+  var nNodes = 0L
+  for (move in pseudoLegalMoves) {
+    val pseudoLegalMovesNext = mutableListOf<Move>()
+    val positionNext = makeMove(position, move, pseudoLegalMovesNext)
+    if (positionNext != null) {
+      val nChildNodes = count(positionNext, nPlies - 1, pseudoLegalMovesNext, false)
+      nNodes += nChildNodes
+      if (verbose) {
+        println("${toUciCode(move)}: $nChildNodes")
+      }
+    }
+  }
+  return nNodes
+}
+
+private data class Variation(val value: Int, val moves: List<Move>)
+
+internal fun goMate(position: Position, nMoves: Int) {
+  val begin = System.currentTimeMillis()
+  val pseudoLegalMoves = mutableListOf<Move>()
+  if (isPositionLegal(position, pseudoLegalMoves)) {
+    val variations = mutableListOf<Variation>()
+    for (move in pseudoLegalMoves) {
+      val pseudoLegalMovesMin = mutableListOf<Move>()
+      val positionMin = makeMove(position, move, pseudoLegalMovesMin)
+      if (positionMin != null) {
+        val variationMin = searchMin(positionMin, nMoves, pseudoLegalMovesMin)
+        val distance =
+          if (variationMin.value > 0) {
+            nMoves - variationMin.value + 1
+          } else {
+            Int.MAX_VALUE
+          }
+        val moves = listOf(move) + variationMin.moves
+        variations.add(Variation(distance, moves))
+        if (distance <= nMoves) {
+          println("info string ${toUciCode(move)}: mate in $distance")
+        } else {
+          println("info string ${toUciCode(move)}: no mate in $nMoves")
+        }
+      }
+    }
+    val end = System.currentTimeMillis()
+    if (variations.isNotEmpty()) {
+      val principalVariation = variations.minBy { it.value }
+      if (principalVariation.value <= nMoves) {
+        println(
+          "info time ${end - begin} score mate ${principalVariation.value} pv ${
+                    principalVariation.moves.joinToString(
+                        " "
+                    ) { toUciCode(it) }
+                }"
+        )
+      } else {
+        println("info time ${end - begin}")
+      }
+      println("bestmove ${toUciCode(principalVariation.moves.first())}")
+    } else {
+      println("info time ${end - begin}")
+      println("bestmove ${toUciCode(NullMove)}")
+    }
+  } else {
+    println("info string Illegal position")
+  }
+}
+
+private fun searchMax(
+  positionMax: Position,
+  nMoves: Int,
+  pseudoLegalMovesMax: List<Move>,
+): Variation {
+  var valueMax = -1
+  var movesMax = listOf<Move>()
+  for (moveMax in pseudoLegalMovesMax) {
+    val pseudoLegalMovesMin = mutableListOf<Move>()
+    val positionMin = makeMove(positionMax, moveMax, pseudoLegalMovesMin)
+    if (positionMin != null) {
+      val variationMin = searchMin(positionMin, nMoves, pseudoLegalMovesMin)
+      if (variationMin.value > valueMax) {
+        valueMax = variationMin.value
+        movesMax = listOf(moveMax) + variationMin.moves
+        if (valueMax == nMoves) {
+          break
+        }
+      }
+    }
+  }
+  return Variation(valueMax, movesMax)
+}
+
+private fun searchMin(
+  positionMin: Position,
+  nMoves: Int,
+  pseudoLegalMovesMin: List<Move>,
+): Variation {
+  var valueMin = 0
+  var movesMin = listOf<Move>()
+  if (nMoves == 1) {
+    for (moveMin in pseudoLegalMovesMin) {
+      if (makeMove(positionMin, moveMin, null) != null) {
+        valueMin = -1
+        break
+      }
+    }
+  } else {
+    for (moveMin in pseudoLegalMovesMin) {
+      val pseudoLegalMovesMax = mutableListOf<Move>()
+      val positionMax = makeMove(positionMin, moveMin, pseudoLegalMovesMax)
+      if (positionMax != null) {
+        val variationMax = searchMax(positionMax, nMoves - 1, pseudoLegalMovesMax)
+        if (valueMin == 0 || variationMax.value < valueMin) {
+          valueMin = variationMax.value
+          movesMin = listOf(moveMin) + variationMax.moves
+          if (valueMin == -1) {
+            break
+          }
+        }
+      }
+    }
+  }
+  if (valueMin == 0) {
+    valueMin =
+      if (makeMove(positionMin, NullMove, null) != null) {
+        -1
+      } else {
+        nMoves
+      }
+  }
+  return Variation(valueMin, movesMin)
 }
